@@ -1,0 +1,14 @@
+[package]
+name = "exgrid_example"
+version = "0.1.0"
+authors = ["PingPongun <pp.pp4@vp.pl>"]
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.27.2" }
+egui = { version = "0.27.2" }
+exgrid = { path = ".." }
+
+[[bin]]
+name = "exgrid_example"
+path = "./main.rs"

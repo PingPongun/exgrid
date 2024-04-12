@@ -1,0 +1,17 @@
+[package]
+name = "exgrid"
+version = "0.1.0"
+authors = ["PingPongun <pp.pp4@vp.pl>"]
+description = "ExGrid is drop-in replacement to egui::Grid with several upgrades"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/PingPongun/exgrid/"
+keywords = ["egui"]
+
+[lib]
+
+[dependencies]
+egui = { version = "0.27.2", default-features = false }
+
+log = { version = "0.4", optional = true, features = ["std"] }
+maybe-owned = "0.3.4"
