@@ -42,6 +42,41 @@ impl eframe::App for MyApp {
                         });
                         ui.extext("Third row, second column");
                         ui.end_row();
+                        ui.collapsing_rows(
+                            |ui| {
+                                ui.extext("collapsing header");
+                                ui.extext("collapsing header-col2");
+                                ui.extext("collapsing header-col3")
+                            },
+                            |ui| {
+                                ui.extext("collapsing row 1-col 1");
+                                ui.extext("collapsing row 1-col2");
+                                ui.extext("collapsing row 1-col3");
+                                ui.end_row();
+                                ui.extext("collapsing row 2-col 1");
+                                ui.extext("collapsing row 2-col2");
+                                ui.extext("collapsing row 2-col3");
+                                ui.end_row();
+                                ui.collapsing_rows(
+                                    |ui| {
+                                        ui.extext("double nested header");
+                                        ui.extext("double nested header-col2")
+                                    },
+                                    |ui| {
+                                        ui.extext("double nested row 1-col 1");
+                                        ui.extext("double nested row 1-col2");
+                                        ui.extext("double nested row 1-col3");
+                                        ui.end_row();
+                                        ui.extext("double nested row 2-col 1");
+                                        ui.extext("double nested row 2-col2");
+                                        ui.extext("double nested row 2-col3")
+                                    },
+                                );
+                                ui.extext("collapsing row 3-col 1");
+                                ui.extext("collapsing row 3-col2");
+                                ui.extext("collapsing row 3-col3");
+                            },
+                        );
                     });
             });
         });

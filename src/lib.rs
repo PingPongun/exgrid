@@ -153,7 +153,11 @@ impl ExGrid {
             let add_contents = |ui: &mut Ui| {
                 let mut ex: ExUi<'_, '_> = ui.into();
                 ex.1.mode = ExUiMode::Compact {
-                    ui_row: Some(FrameRun::begin(Frame::group(ex.0.style()), &mut ex.0)),
+                    ui_row: vec![FrameRun::begin(
+                        Frame::group(ex.0.style()),
+                        false,
+                        &mut ex.0,
+                    )],
                     ui_columns: None,
                 };
                 let ret = add_contents(&mut ex);
@@ -223,12 +227,15 @@ pub struct FrameRun {
 }
 
 impl FrameRun {
-    pub fn begin(frame: Frame, ui: &mut Ui) -> FrameRun {
+    pub fn begin(frame: Frame, indent: bool, ui: &mut Ui) -> FrameRun {
         let where_to_put_background = ui.painter().add(Shape::Noop);
         let outer_rect_bounds = ui.available_rect_before_wrap();
 
         let mut inner_rect =
             (frame.inner_margin + frame.outer_margin).shrink_rect(outer_rect_bounds);
+        if indent {
+            inner_rect.min.x += ui.style().spacing.indent;
+        }
 
         // Make sure we don't shrink to the negative:
         inner_rect.max.x = inner_rect.max.x.max(inner_rect.min.x);
@@ -255,7 +262,7 @@ impl FrameRun {
         (self.frame.inner_margin + self.frame.outer_margin).expand_rect(self.content_ui.min_rect())
     }
 
-    pub fn end(&mut self, ui: &mut Ui) -> Response {
+    pub fn end(&mut self) {
         let paint_rect = self.paint_rect();
 
         let FrameRun {
@@ -264,11 +271,14 @@ impl FrameRun {
             ..
         } = self;
 
-        if ui.is_rect_visible(paint_rect) {
+        if self.content_ui.is_rect_visible(paint_rect) {
             let shape = frame.paint(paint_rect);
-            ui.painter().set(*where_to_put_background, shape);
+            self.content_ui
+                .painter()
+                .set(*where_to_put_background, shape);
         }
 
-        ui.allocate_rect(self.content_with_margin(), Sense::hover())
+        self.content_ui
+            .advance_cursor_after_rect(self.content_with_margin());
     }
 }
