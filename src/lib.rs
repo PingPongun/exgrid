@@ -14,8 +14,8 @@ pub use ui_wrapper::*;
 pub enum GridMode {
     Auto0Wrap,
     // AutoOptimalWrap,
-    #[default]
     CompactWidth,
+    #[default]
     Traditional,
 }
 
@@ -221,9 +221,11 @@ impl<T: ExWidget> ExWidgetConvinence for T {
 /// - `frame` module is private
 /// - `Prepared::end(..)` requires owned self
 pub struct FrameRun {
+    empty: bool,
     pub frame: Frame,
     where_to_put_background: ShapeIdx,
-    pub content_ui: Ui,
+    content_ui: Ui,
+    pub parrent_width: f32,
 }
 
 impl FrameRun {
@@ -246,39 +248,51 @@ impl FrameRun {
         // content_ui.set_clip_rect(outer_rect_bounds.shrink(self.stroke.width * 0.5)); // Can't do this since we don't know final size yet
 
         FrameRun {
+            empty: true,
             frame,
             where_to_put_background,
             content_ui,
+            parrent_width: ui.min_rect().max.y,
         }
     }
 
     fn paint_rect(&self) -> Rect {
-        self.frame
-            .inner_margin
-            .expand_rect(self.content_ui.min_rect())
+        let mut rect = self.content_ui.min_rect();
+        rect.max.x = rect.max.x.max(self.parrent_width);
+        self.frame.inner_margin.expand_rect(rect)
     }
 
     fn content_with_margin(&self) -> Rect {
         (self.frame.inner_margin + self.frame.outer_margin).expand_rect(self.content_ui.min_rect())
     }
 
-    pub fn end(&mut self) {
-        let paint_rect = self.paint_rect();
-
-        let FrameRun {
-            frame,
-            where_to_put_background,
-            ..
-        } = self;
-
-        if self.content_ui.is_rect_visible(paint_rect) {
-            let shape = frame.paint(paint_rect);
-            self.content_ui
-                .painter()
-                .set(*where_to_put_background, shape);
-        }
-
+    pub fn end(&mut self, max_x: f32, advance_before: Rect) {
+        self.content_ui.advance_cursor_after_rect(advance_before);
         self.content_ui
-            .advance_cursor_after_rect(self.content_with_margin());
+            .expand_to_include_rect(self.content_ui.min_rect().with_max_x(max_x));
+        if !self.empty {
+            let paint_rect = self.paint_rect();
+
+            let FrameRun {
+                frame,
+                where_to_put_background,
+                ..
+            } = self;
+
+            if self.content_ui.is_rect_visible(paint_rect) {
+                let shape = frame.paint(paint_rect);
+                self.content_ui
+                    .painter()
+                    .set(*where_to_put_background, shape);
+            }
+
+            self.content_ui
+                .advance_cursor_after_rect(self.content_with_margin());
+        }
+    }
+
+    pub fn ui(&mut self) -> &mut Ui {
+        self.empty = false;
+        &mut self.content_ui
     }
 }

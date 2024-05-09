@@ -26,6 +26,11 @@ impl<'a, 'b> ExUi<'a, 'b> {
         self.child_ui_with_id_source(max_rect, layout, "child")
     }
 
+    /// Create a new [`Ui`]
+    pub fn ui(&mut self) -> Self {
+        self.child_ui(self.max_rect(), self.layout().clone())
+    }
+
     /// Create a new [`Ui`] at a specific region with a specific id.
     #[inline]
     pub fn child_ui_with_id_source(
@@ -45,7 +50,23 @@ impl<'a, 'b> ExUi<'a, 'b> {
         )
     }
 }
+// ------------------------------------------------------------------------
 
+/// # [`Id`] creation
+impl<'a, 'b> ExUi<'a, 'b> {
+    /// A unique identity of this [`ExUi`].
+    #[inline]
+    pub fn id(&self) -> Id {
+        self.0.id().with(self.1.row_cursor.as_slice())
+    }
+    /// Use this to generate widget ids for widgets that have persistent state in [`Memory`].
+    pub fn make_persistent_id<IdSource>(&self, id_source: IdSource) -> Id
+    where
+        IdSource: Hash,
+    {
+        self.id().with(&id_source)
+    }
+}
 // ------------------------------------------------------------------------
 
 /// # Adding widgets
