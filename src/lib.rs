@@ -1,18 +1,33 @@
+#[cfg(feature = "egui21")]
+use egui21 as egui;
+#[cfg(feature = "egui22")]
+use egui22 as egui;
+#[cfg(feature = "egui23")]
+use egui23 as egui;
+#[cfg(feature = "egui24")]
+use egui24 as egui;
+#[cfg(feature = "egui25")]
+use egui25 as egui;
+#[cfg(feature = "egui26")]
+use egui26 as egui;
+#[cfg(feature = "egui27")]
+use egui27 as egui;
+
 use egui::layers::ShapeIdx;
 use egui::*;
 
 mod exui;
 mod ui_wrapper;
 pub use exui::*;
-pub use ui_wrapper::*;
 
 #[derive(Clone, Debug, Default, PartialEq)]
+/// Configures [`ExGrid`] Layout
 /// - `Traditional` - will result in traditional grid layout (row is in single line)
 /// - `CompactWidth` - will result in not grid layout (width-compact, `egui::Group` based layout)
-/// - `Auto0Wrap` - decision between above will be taken based on available and content width(assuming that in grid mode content will not wrap)
+// /// - `Auto0Wrap` - decision between above will be taken based on available and content width(assuming that in grid mode content will not wrap)
 // /// - `AutoOptimalWrap` - similar to `Auto0Wrap` but in grid mode cell content(if necessary) will wrap to some extent
 pub enum GridMode {
-    Auto0Wrap,
+    // Auto0Wrap,
     // AutoOptimalWrap,
     #[default]
     CompactWidth,
@@ -21,10 +36,10 @@ pub enum GridMode {
 
 // ----------------------------------------------------------------------------
 
-/// A simple grid layout.
+/// ExGrid- drop-in replacement for [`egui::Grid`] with superpowers:
 ///
-/// The cells are always laid out left to right, top-down.
-/// The contents of each cell will be aligned to the left and center.
+/// - alternative/improved layout mode dedicated to narrow windows (it's not grid there, but rather some group based layout)
+/// - supports "subdata" (rows that are indented, hidden behind collapsible, but columns are still aligned with top grid)
 ///
 /// If you want to add multiple widgets to a cell you need to group them with
 /// [`Ui::horizontal`], [`Ui::vertical`] etc.
@@ -63,6 +78,7 @@ impl ExGrid {
     }
 
     /// Setting this will allow for dynamic coloring of rows of the grid object
+    /// Matters only in Grid view
     #[inline]
     pub fn with_row_color<F>(mut self, color_picker: F) -> Self
     where
@@ -73,6 +89,7 @@ impl ExGrid {
     }
 
     /// Setting this will allow the last column to expand to take up the rest of the space of the parent [`Ui`].
+    /// Matters only in Grid view
     #[inline]
     pub fn num_columns(mut self, num_columns: usize) -> Self {
         self.grid = self.grid.num_columns(num_columns);
@@ -83,6 +100,7 @@ impl ExGrid {
     ///
     /// This can make a table easier to read.
     /// Default is whatever is in [`crate::Visuals::striped`].
+    /// Matters only in Grid view
     pub fn striped(mut self, striped: bool) -> Self {
         self.grid = self.grid.striped(striped);
         self
@@ -90,6 +108,7 @@ impl ExGrid {
 
     /// Set minimum width of each column.
     /// Default: [`crate::style::Spacing::interact_size`]`.x`.
+    /// Matters only in Grid view
     #[inline]
     pub fn min_col_width(mut self, min_col_width: f32) -> Self {
         self.grid = self.grid.min_col_width(min_col_width);
@@ -98,6 +117,7 @@ impl ExGrid {
 
     /// Set minimum height of each row.
     /// Default: [`crate::style::Spacing::interact_size`]`.y`.
+    /// Matters only in Grid view
     #[inline]
     pub fn min_row_height(mut self, min_row_height: f32) -> Self {
         self.grid = self.grid.min_row_height(min_row_height);
@@ -105,6 +125,7 @@ impl ExGrid {
     }
 
     /// Set soft maximum width (wrapping width) of each column.
+    /// Matters only in Grid view
     #[inline]
     pub fn max_col_width(mut self, max_col_width: f32) -> Self {
         self.grid = self.grid.max_col_width(max_col_width);
@@ -113,6 +134,7 @@ impl ExGrid {
 
     /// Set spacing between columns/rows.
     /// Default: [`crate::style::Spacing::item_spacing`].
+    /// Matters only in Grid view
     #[inline]
     pub fn spacing(mut self, spacing: impl Into<Vec2>) -> Self {
         self.grid = self.grid.spacing(spacing);
@@ -121,6 +143,7 @@ impl ExGrid {
 
     /// Change which row number the grid starts on.
     /// This can be useful when you have a large [`ExGrid`] inside of [`ScrollArea::show_rows`].
+    /// Matters only in Grid view
     #[inline]
     pub fn start_row(mut self, start_row: usize) -> Self {
         self.grid = self.grid.start_row(start_row);
@@ -137,6 +160,7 @@ impl ExGrid {
 }
 
 impl ExGrid {
+    /// Show `ExGrid` in supplied `ui` and add `add_contents` to it.
     pub fn show<R>(
         self,
         ui: &mut Ui,
@@ -171,15 +195,9 @@ impl ExGrid {
     }
 }
 
-/// Anything implementing Widget can be added to a [`Ui`] with [`Ui::add`].
+/// Similar to [`egui::Widget`], but for use with [`ExUi`]
 ///
-/// [`Button`], [`Label`], [`Slider`], etc all implement the [`Widget`] trait.
-///
-/// You only need to implement `Widget` if you care about being able to do `ui.add(your_widget);`.
-///
-/// Note that the widgets ([`Button`], [`TextEdit`] etc) are
-/// [builders](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html),
-/// and not objects that hold state.
+/// Anything implementing Widget can be added to a [`ExUi`] with [`ExUi::add`], but this trait is if you prefer to use `widget.ui_ex(ui)`.
 ///
 /// This trait is implemented for all types that implement [`egui::Widget`]
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
@@ -220,7 +238,7 @@ impl<T: ExWidget> ExWidgetConvinence for T {
 /// Similar to `egui::containers::frame::Prepared`, but this is necessary as:
 /// - `frame` module is private
 /// - `Prepared::end(..)` requires owned self
-pub struct FrameRun {
+pub(crate) struct FrameRun {
     empty: bool,
     pub frame: Frame,
     where_to_put_background: ShapeIdx,
@@ -246,8 +264,6 @@ impl FrameRun {
 
         let content_ui = ui.child_ui(inner_rect, Layout::top_down_justified(Align::LEFT));
 
-        // content_ui.set_clip_rect(outer_rect_bounds.shrink(self.stroke.width * 0.5)); // Can't do this since we don't know final size yet
-
         FrameRun {
             empty: true,
             frame,
@@ -265,7 +281,7 @@ impl FrameRun {
     }
 
     fn content_with_margin(&self) -> Rect {
-        (self.frame.total_margin() + self.frame.stroke.width)
+        (self.frame.total_margin() + egui::Margin::same(self.frame.stroke.width))
             .expand_rect(self.content_ui.min_rect())
     }
 

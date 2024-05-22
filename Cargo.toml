@@ -5,13 +5,23 @@ authors = ["PingPongun <pp.pp4@vp.pl>"]
 description = "ExGrid is drop-in replacement to egui::Grid with several upgrades"
 edition = "2021"
 license = "MIT"
+exclude = ["demo/*", ".vscode/*"]
 repository = "https://github.com/PingPongun/exgrid/"
 keywords = ["egui"]
 
 [lib]
 
 [dependencies]
-egui = { version = "0.27.2", default-features = false }
+# egui dep is handled through feature to overcome cargo resolver not be able to select same egui version as used in rest of the app.
+# this allows egui_struct to work with newer egui through semver patch update
+# breaking-change updates (0.4, 0.5, 1., 2., ...) will update default egui version feature to newest one.
+egui24 = { version = "0.24", package = "egui", default-features = false, optional = true }
+egui25 = { version = "0.25", package = "egui", default-features = false, optional = true }
+egui26 = { version = "0.26", package = "egui", default-features = false, optional = true }
+egui27 = { version = "0.27", package = "egui", default-features = false, optional = true }
 
 log = { version = "0.4", optional = true, features = ["std"] }
 maybe-owned = "0.3.4"
+
+[features]
+default = ["egui27"]

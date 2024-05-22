@@ -1,5 +1,4 @@
 use egui::epaint::Hsva;
-use egui::*;
 use maybe_owned::MaybeOwnedMut;
 use std::hash::Hash;
 
@@ -9,10 +8,10 @@ impl<'a, 'b> ExUi<'a, 'b> {
     // ------------------------------------------------------------------------
     // Creation:
 
-    /// Create a new [`Ui`].
+    /// Create a new [`ExUi`].
     ///
     /// Normally you would not use this directly, but instead use
-    /// [`SidePanel`], [`TopBottomPanel`], [`CentralPanel`], [`Window`] or [`Area`].
+    /// [`ExGrid::show`].
     #[inline]
     pub fn new(ctx: Context, layer_id: LayerId, id: Id, max_rect: Rect, clip_rect: Rect) -> Self {
         ExUi(
@@ -21,17 +20,17 @@ impl<'a, 'b> ExUi<'a, 'b> {
         )
     }
 
-    /// Create a new [`Ui`] at a specific region.
+    /// Create a new [`ExUi`] at a specific region.
     pub fn child_ui(&mut self, max_rect: Rect, layout: Layout) -> Self {
         self.child_ui_with_id_source(max_rect, layout, "child")
     }
 
-    /// Create a new [`Ui`]
+    /// Create a new [`ExUi`]
     pub fn ui(&mut self) -> Self {
         self.child_ui(self.max_rect(), self.layout().clone())
     }
 
-    /// Create a new [`Ui`] at a specific region with a specific id.
+    /// Create a new [`ExUi`] at a specific region with a specific id.
     #[inline]
     pub fn child_ui_with_id_source(
         &mut self,
@@ -55,6 +54,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
 /// # [`Id`] creation
 impl<'a, 'b> ExUi<'a, 'b> {
     /// A unique identity of this [`ExUi`].
+    /// Differently to [`egui::UI::id`], it changes as widgets are added to it (it is calculated based on row number on each nesting level).
     #[inline]
     pub fn id(&self) -> Id {
         self.0.id().with(self.1.row_cursor.as_slice())

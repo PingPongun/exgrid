@@ -5,6 +5,5 @@
 
 ExGrid- drop-in replacement for egui::Grid with superpowers:
 
-- improved layout for narrow windows (it's not grid there)
+- alternative/improved layout mode dedicated to narrow windows (it's not grid there, but rather some group based layout)
 - supports "subdata" (rows that are indented hidden behind collapsible, but columns are still aligned with top grid)
-- more intelligent wrapping

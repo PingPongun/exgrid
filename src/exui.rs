@@ -1,11 +1,10 @@
-use egui::*;
 use maybe_owned::MaybeOwnedMut;
 use std::borrow::BorrowMut;
 use std::ops::{Deref, DerefMut};
 
 use crate::*;
 
-pub enum ExUiMode {
+pub(crate) enum ExUiMode {
     Compact {
         ui_row: Vec<FrameRun>,
         ui_columns: Option<Ui>,
@@ -19,7 +18,7 @@ impl Default for ExUiMode {
         ExUiMode::Grid {}
     }
 }
-pub struct ExUiInner {
+pub(crate) struct ExUiInner {
     pub(crate) column: usize,
     pub(crate) start_collapsed: bool,
     pub(crate) row_cursor: Vec<usize>,
@@ -27,10 +26,6 @@ pub struct ExUiInner {
     pub(crate) width_max: f32,
 
     pub(crate) mode: ExUiMode,
-    /// at frame start initialized with `widths_used` value from previous frame(is always larger or egual `widths_used`)
-    pub(crate) widths_max: Vec<f32>,
-    /// at frame start initialized with zero
-    pub(crate) widths_used: Vec<f32>,
 }
 
 impl Default for ExUiInner {
@@ -42,12 +37,11 @@ impl Default for ExUiInner {
             width_max: 0.0,
             row_cursor: vec![0],
             mode: Default::default(),
-            widths_max: Default::default(),
-            widths_used: Default::default(),
         }
     }
 }
-
+/// Wrapper for [`egui::Ui`] (most functions will work exactly the same; `ExUi` derefs to `Ui` for all not implemented functions),
+/// but with some additional state & functions to manage adding widgets inside [`ExGrid`].
 pub struct ExUi<'a, 'b>(
     pub MaybeOwnedMut<'a, Ui>,
     pub(crate) MaybeOwnedMut<'b, ExUiInner>,
@@ -85,17 +79,15 @@ impl<'a, 'b> ExUi<'a, 'b> {
         }
     }
 
-    /// Add empty row in a grid layout or wrapping layout.
-    /// Otherwise does nothing.
+    /// Add empty row.
     pub fn empty_row(&mut self) {
         self.end_row();
         self.1.column = 1;
         self.end_row();
     }
 
-    /// Move to the next row in a grid layout or wrapping layout.
-    /// Otherwise does nothing.
-    /// No-op if we are already at the begining of the new row
+    /// Move to the next row.
+    /// No-op if we are already at the begining of the new row.
     pub fn end_row(&mut self) {
         if self.1.column != 0 {
             *self.1.row_cursor.last_mut().unwrap() += 1;
@@ -202,11 +194,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
 
                     *ui_columns = Some(ui.child_ui_with_id_source(
                         child_rect,
-                        // Layout::top_down_justified(Align::LEFT),
-                        // It would be better to use wrapping-horizontal here, but eguis wrapping isn't smart enough
                         Layout::left_to_right(Align::TOP).with_main_wrap(true),
-                        // .with_main_justify(true)
-                        // .with_main_align(Align::RIGHT),
                         "indent",
                     ));
 
@@ -267,14 +255,14 @@ impl<'a, 'b> ExUi<'a, 'b> {
         self.0
             .data_mut(|d| d.get_temp_mut_or(id, start_collapsed()).clone());
     }
-    /// Add row with subdata, subdata rows are hidden behind collapsible
+    /// Add header row to collapsible subdata
     pub fn collapsing_rows_header<T>(&mut self, header_row: impl FnOnce(&mut ExUi) -> T) -> T {
         self.start_collapsing();
         let ret = header_row(self);
         ret
     }
 
-    /// Add row with subdata, subdata rows are hidden behind collapsible
+    /// Add rows with subdata, subdata rows are hidden behind collapsible
     pub fn collapsing_rows_body<T>(
         &mut self,
         collapsing_rows: impl FnOnce(&mut ExUi) -> T,
@@ -311,6 +299,4 @@ impl<'a, 'b> ExUi<'a, 'b> {
             self.label(text.into())
         }
     }
-
-    pub fn skip_cell(&mut self) {}
 }
