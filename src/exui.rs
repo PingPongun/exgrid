@@ -281,6 +281,16 @@ impl<'a, 'b> ExUi<'a, 'b> {
         self.end_row();
         if collapsed {
             body_response = None;
+            if let ExUiMode::Compact { ref mut ui_row, .. } = self.1.mode {
+                let ui = &mut ui_row.last_mut().unwrap().content_ui;
+
+                let mut child = ui.child_ui(
+                    ui.available_rect_before_wrap(),
+                    Layout::left_to_right(Align::TOP),
+                );
+                child.label("⚫⚫⚫");
+                ui.expand_to_include_rect(child.min_rect())
+            }
         } else {
             body_response = Some(collapsing_rows(self));
         }
