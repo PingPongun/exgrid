@@ -66,8 +66,10 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
     }
 }
 impl<'a, 'b> From<&'a mut Ui> for ExUi<'a, 'b> {
-    fn from(value: &'a mut Ui) -> Self {
-        ExUi(MaybeOwnedMut::Borrowed(value), Default::default())
+    fn from(ui: &'a mut Ui) -> Self {
+        let mut inner: ExUiInner = Default::default();
+        inner.width_max_prev = ui.data_mut(|d| d.get_temp_mut_or(ui.id(), 0.0).clone());
+        ExUi(MaybeOwnedMut::Borrowed(ui), MaybeOwnedMut::Owned(inner))
     }
 }
 
@@ -99,7 +101,8 @@ impl<'a, 'b> ExUi<'a, 'b> {
             *self.1.row_cursor.last_mut().unwrap() += 1;
         }
         let indent = self.1.row_cursor.len();
-        let mut max_width = self.1.width_max;
+        let mut width_max = self.1.width_max;
+        let width_max_prev = self.1.width_max_prev;
         if let ExUiMode::Compact {
             ref mut ui_row,
             ref mut ui_columns,
@@ -107,18 +110,18 @@ impl<'a, 'b> ExUi<'a, 'b> {
         {
             let mut rect_columns = ui_columns.as_ref().map_or(Rect::NOTHING, |u| u.min_rect());
             *ui_columns = None;
-            max_width = max_width.max(rect_columns.max.x);
+            width_max = width_max.max(rect_columns.max.x);
             if ui_row.len() >= indent {
                 //indent kept at the same level
                 let mut row_poped = ui_row.pop().unwrap();
-                row_poped.end(max_width, rect_columns);
+                row_poped.end(width_max.max(width_max_prev), rect_columns);
                 rect_columns = row_poped.ui().min_rect();
             }
 
             let ui = ui_row.last_mut().map_or(self.0.borrow_mut(), |x| x.ui());
             ui.advance_cursor_after_rect(rect_columns);
             ui.end_row();
-            let fr = FrameRun::begin(Frame::group(ui.style()), indent > 1, ui);
+            let fr = FrameRun::begin(Frame::group(ui.style()), indent, ui);
             ui_row.push(fr);
 
             //TODO add frame configuration
@@ -126,7 +129,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
             self.0.end_row()
         }
         self.1.column = 0;
-        self.1.width_max = max_width;
+        self.1.width_max = width_max;
     }
 
     fn start_collapsing(&mut self) {
@@ -140,7 +143,8 @@ impl<'a, 'b> ExUi<'a, 'b> {
         self.1.start_collapsed = false;
         if self.1.row_cursor.len() > 1 {
             self.1.row_cursor.pop();
-            let mut max_width = self.1.width_max;
+            let mut width_max = self.1.width_max;
+            let width_max_prev = self.1.width_max_prev;
             *self.1.row_cursor.last_mut().unwrap() += 1;
 
             if let ExUiMode::Compact {
@@ -149,14 +153,14 @@ impl<'a, 'b> ExUi<'a, 'b> {
             } = self.1.mode
             {
                 let rect_columns = ui_columns.as_ref().map_or(Rect::NOTHING, |u| u.min_rect());
-                max_width = max_width.max(rect_columns.max.x);
+                width_max = width_max.max(rect_columns.max.x);
                 let mut row_poped = ui_row.pop().unwrap();
-                row_poped.end(max_width, rect_columns);
+                row_poped.end(width_max.max(width_max_prev), rect_columns);
                 ui_row
                     .last_mut()
                     .map(|u| u.ui().advance_cursor_after_rect(row_poped.ui().min_rect()));
             }
-            self.1.width_max = max_width;
+            self.1.width_max = width_max;
         }
     }
 

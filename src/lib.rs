@@ -14,8 +14,8 @@ pub use ui_wrapper::*;
 pub enum GridMode {
     Auto0Wrap,
     // AutoOptimalWrap,
-    CompactWidth,
     #[default]
+    CompactWidth,
     Traditional,
 }
 
@@ -144,26 +144,26 @@ impl ExGrid {
     ) -> InnerResponse<R> {
         if self.mode == GridMode::Traditional {
             let add_contents = |ui: &mut Ui| {
-                let mut ui = ui.into();
-                let ret = add_contents(&mut ui);
+                let id = ui.id();
+                let mut ex = ui.into();
+                let ret = add_contents(&mut ex);
+                ex.data_mut(|d| d.insert_temp(id, ex.1.width_max));
                 ret
             };
             self.grid.show(ui, add_contents)
         } else {
             let add_contents = |ui: &mut Ui| {
+                let id = ui.id();
                 let mut ex: ExUi<'_, '_> = ui.into();
                 ex.1.mode = ExUiMode::Compact {
-                    ui_row: vec![FrameRun::begin(
-                        Frame::group(ex.0.style()),
-                        false,
-                        &mut ex.0,
-                    )],
+                    ui_row: vec![FrameRun::begin(Frame::group(ex.0.style()), 0, &mut ex.0)],
                     ui_columns: None,
                 };
                 let ret = add_contents(&mut ex);
                 if ex.1.column != 0 {
                     ex.end_row()
                 }
+                ex.data_mut(|d| d.insert_temp(id, ex.min_rect().width()));
                 ret
             };
             self.grid.num_columns(1).show(ui, add_contents)
@@ -224,18 +224,19 @@ pub struct FrameRun {
     empty: bool,
     pub frame: Frame,
     where_to_put_background: ShapeIdx,
-    content_ui: Ui,
+    indent: usize,
+    pub content_ui: Ui,
     pub parrent_width: f32,
 }
 
 impl FrameRun {
-    pub fn begin(frame: Frame, indent: bool, ui: &mut Ui) -> FrameRun {
+    pub fn begin(frame: Frame, indent: usize, ui: &mut Ui) -> FrameRun {
         let where_to_put_background = ui.painter().add(Shape::Noop);
         let outer_rect_bounds = ui.available_rect_before_wrap();
 
         let mut inner_rect =
             (frame.inner_margin + frame.outer_margin).shrink_rect(outer_rect_bounds);
-        if indent {
+        if indent > 1 {
             inner_rect.min.x += ui.style().spacing.indent;
         }
 
@@ -251,6 +252,7 @@ impl FrameRun {
             empty: true,
             frame,
             where_to_put_background,
+            indent,
             content_ui,
             parrent_width: ui.min_rect().max.y,
         }
@@ -263,13 +265,17 @@ impl FrameRun {
     }
 
     fn content_with_margin(&self) -> Rect {
-        (self.frame.inner_margin + self.frame.outer_margin).expand_rect(self.content_ui.min_rect())
+        (self.frame.total_margin() + self.frame.stroke.width)
+            .expand_rect(self.content_ui.min_rect())
     }
 
     pub fn end(&mut self, max_x: f32, advance_before: Rect) {
+        let width_from_previous = max_x
+            - ((self.indent.wrapping_sub(1)) as f32
+                * (self.frame.total_margin().right + self.frame.stroke.width));
         self.content_ui.advance_cursor_after_rect(advance_before);
         self.content_ui
-            .expand_to_include_rect(self.content_ui.min_rect().with_max_x(max_x));
+            .expand_to_include_rect(self.content_ui.min_rect().with_max_x(width_from_previous));
         if !self.empty {
             let paint_rect = self.paint_rect();
 
