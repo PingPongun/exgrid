@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use eframe::egui;
 use exgrid::ExGrid;
@@ -26,6 +26,10 @@ impl eframe::App for MyApp {
                 ExGrid::new("some_unique_id")
                     // .mode(GridMode::Traditional)
                     .show(ui, |ui| {
+                        ui.start_collapsing();
+                        ui.extext("Data");
+                        // ui.extext("Data");
+                        ui.end_row();
                         ui.extext("First row, first column");
                         ui.extext("First row, second column");
                         ui.end_row();
@@ -42,12 +46,12 @@ impl eframe::App for MyApp {
                         });
                         ui.extext("Third row, second column");
                         ui.end_row();
-                        ui.collapsing_rows_header(|ui| {
+                        ui.collapsing_rows(|ui| {
                             ui.extext("collapsing header");
                             ui.extext("collapsing header-col2");
                             ui.extext("collapsing header-col3")
-                        });
-                        ui.collapsing_rows_body(|ui| {
+                        })
+                        .body(|ui| {
                             ui.extext("collapsing row 1-col 1");
                             ui.extext("collapsing row 1-col2");
                             ui.extext("collapsing row 1-col3");
@@ -56,23 +60,24 @@ impl eframe::App for MyApp {
                             ui.extext("collapsing row 2-col2");
                             ui.extext("collapsing row 2-col3");
                             ui.end_row();
-                            ui.collapsing_rows_header(|ui| {
-                                ui.extext("double nested header");
-                                ui.extext("double nested header-col2")
-                            });
-                            ui.collapsing_rows_body(|ui| {
-                                ui.extext("double nested row 1-col 1");
-                                ui.extext("double nested row 1-col2");
-                                ui.extext("double nested row 1-col3");
-                                ui.end_row();
-                                ui.extext("double nested row 2-col 1");
-                                ui.extext("double nested row 2-col2");
-                                ui.extext("double nested row 2-col3")
-                            });
+                            ui.start_collapsing();
+                            ui.extext("double nested header");
+                            ui.extext("double nested header-col2");
+                            ui.end_row();
+
+                            ui.extext("double nested row 1-col 1");
+                            ui.extext("double nested row 1-col2");
+                            ui.extext("double nested row 1-col3");
+                            ui.end_row();
+                            ui.extext("double nested row 2-col 1");
+                            ui.extext("double nested row 2-col2");
+                            ui.extext("double nested row 2-col3");
+                            ui.stop_collapsing();
                             ui.extext("collapsing row 3-col 1");
                             ui.extext("collapsing row 3-col2");
-                            ui.extext("collapsing row 3-col3");
+                            ui.extext("collapsing row 3-col3")
                         });
+                        ui.stop_collapsing();
                     });
             });
         });

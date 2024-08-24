@@ -20,50 +20,203 @@ impl Default for ExUiMode {
 }
 pub(crate) struct ExUiInner {
     pub(crate) column: usize,
-    pub(crate) start_collapsed: bool,
+    pub(crate) collapsing_header: bool,
     pub(crate) row_cursor: Vec<usize>,
     pub(crate) width_max_prev: f32,
     pub(crate) width_max: f32,
 
     pub(crate) mode: ExUiMode,
+    pub(crate) collapsed: Vec<bool>,
 }
 
 impl Default for ExUiInner {
     fn default() -> Self {
         Self {
             column: 0,
-            start_collapsed: false,
+            collapsing_header: false,
             width_max_prev: 0.0,
             width_max: 0.0,
             row_cursor: vec![0],
             mode: Default::default(),
+            collapsed: vec![false],
         }
     }
 }
 /// Wrapper for [`egui::Ui`] (most functions will work exactly the same; `ExUi` derefs to `Ui` for all not implemented functions),
 /// but with some additional state & functions to manage adding widgets inside [`ExGrid`].
-pub struct ExUi<'a, 'b>(
-    pub MaybeOwnedMut<'a, Ui>,
-    pub(crate) MaybeOwnedMut<'b, ExUiInner>,
-);
+pub struct ExUi<'a, 'b> {
+    pub ui: MaybeOwnedMut<'a, Ui>,
+    pub(crate) state: MaybeOwnedMut<'b, ExUiInner>,
+    /// (cell ui, widgets in cell)
+    pub(crate) keep_cell: Option<(MaybeOwnedMut<'a, Ui>, usize)>,
+    pub(crate) temp_ui: Option<MaybeOwnedMut<'a, Ui>>,
+}
 
 impl<'a, 'b> Deref for ExUi<'a, 'b> {
     type Target = Ui;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.ui
+    }
+}
+impl<'a, 'b> ExUi<'a, 'b> {
+    fn _ui(&mut self) -> &mut Ui {
+        if let ExUiMode::Compact {
+            ref mut ui_row,
+            ref mut ui_columns,
+        } = self.state.mode
+        {
+            if let Some(ref mut col) = ui_columns {
+                return col;
+            } else {
+                return &mut ui_row.last_mut().unwrap().content_ui;
+            }
+        } else {
+            return self.ui.as_mut();
+        }
+    }
+    fn advance_temp_rect(&mut self) {
+        if self.collapsed() {
+            return;
+        }
+        let temp_rect = self
+            .temp_ui
+            .as_ref()
+            .map(|ui| {
+                if ui.is_visible() {
+                    Some(ui.min_rect())
+                } else {
+                    None
+                }
+            })
+            .flatten();
+        if let Some(rect) = temp_rect {
+            self._ui().advance_cursor_after_rect(rect);
+        }
+        self.temp_ui = None;
     }
 }
 impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        if self.collapsed() {
+            let ctx = self.ctx().clone();
+            let rect = self._ui().min_rect();
+            self.state.column += 1;
+            if let Some(ui) = &mut self.temp_ui {
+                ui.skip_ahead_auto_ids(1);
+            }
+            let u: &mut MaybeOwnedMut<'a, Ui> = self.temp_ui.get_or_insert_with(|| {
+                MaybeOwnedMut::Owned(Ui::new(
+                    ctx,
+                    LayerId::debug(),
+                    "dummy".into(),
+                    rect,
+                    Rect::NOTHING,
+                ))
+            });
+
+            u.set_visible(false);
+            return u;
+        }
+        self.advance_temp_rect();
+        let id = self.id();
+        if let Some((ui, wic)) = &mut self.keep_cell {
+            *wic += 1;
+            return ui;
+        } else {
+            self.state.column += 1;
+            let ExUiInner {
+                column,
+                collapsing_header,
+                row_cursor,
+                mode,
+                ..
+            } = self.state.as_mut();
+
+            if let ExUiMode::Compact {
+                ref mut ui_row,
+                ref mut ui_columns,
+            } = mode
+            {
+                match column {
+                    1 => {
+                        let mut ui = simpleui(ui_row.last_mut().unwrap().ui());
+                        if *collapsing_header {
+                            let collapsed =
+                                self.ui.data_mut(|d| d.get_temp_mut_or(id, false).clone());
+                            let icon = if collapsed { "⏵" } else { "⏷" };
+                            if ui.add(Button::new(icon).frame(false).small()).clicked() {
+                                self.ui.data_mut(|d| d.insert_temp(id, !collapsed));
+                            }
+                        };
+                        self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
+                        return self.temp_ui.as_mut().unwrap();
+                    }
+                    2 => {
+                        let ui = &mut ui_row.last_mut().unwrap().ui();
+                        let indent = ui.spacing().indent;
+                        let mut child_rect = ui.available_rect_before_wrap();
+                        child_rect.min.x += indent;
+
+                        *ui_columns = Some(ui.child_ui_with_id_source(
+                            child_rect,
+                            Layout::left_to_right(Align::TOP).with_main_wrap(true),
+                            "indent",
+                        ));
+
+                        return ui_columns.as_mut().unwrap();
+                    }
+                    _ => {
+                        if let Some(ref mut col) = ui_columns {
+                            col.separator();
+                            return col;
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                }
+            } else {
+                if *collapsing_header && *column == 1 {
+                    let mut ui = simpleui(self.ui.as_mut());
+                    for _ in 0..row_cursor.len() - 2 {
+                        ui.separator();
+                    }
+                    let collapsed = ui.data_mut(|d| d.get_temp_mut_or(id, false).clone());
+                    let icon = if collapsed { "⏵" } else { "⏷" };
+                    if ui.add(Button::new(icon).frame(false).small()).clicked() {
+                        ui.data_mut(|d| d.insert_temp(id, !collapsed));
+                    }
+                    self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
+                    return self.temp_ui.as_mut().unwrap();
+                } else if row_cursor.len() > 1 {
+                    //if rows are collapsed, we should not reach here(reaching here should be stoped by `collapsing_rows_body`)
+                    if *column == 1 {
+                        let mut ui = simpleui(self.ui.as_mut());
+                        for _ in 0..row_cursor.len() - 1 {
+                            ui.separator();
+                        }
+                        self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
+                        return self.temp_ui.as_mut().unwrap();
+                    } else {
+                        return self.ui.as_mut();
+                    }
+                } else {
+                    return self.ui.as_mut();
+                }
+            };
+        }
     }
 }
 impl<'a, 'b> From<&'a mut Ui> for ExUi<'a, 'b> {
     fn from(ui: &'a mut Ui) -> Self {
         let mut inner: ExUiInner = Default::default();
         inner.width_max_prev = ui.data_mut(|d| d.get_temp_mut_or(ui.id(), 0.0).clone());
-        ExUi(MaybeOwnedMut::Borrowed(ui), MaybeOwnedMut::Owned(inner))
+        ExUi {
+            ui: MaybeOwnedMut::Borrowed(ui),
+            state: MaybeOwnedMut::Owned(inner),
+            keep_cell: None,
+            temp_ui: None,
+        }
     }
 }
 
@@ -73,7 +226,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     pub fn end_row_weak(&mut self) {
         if let ExUiMode::Compact {
             ref mut ui_columns, ..
-        } = self.1.mode
+        } = self.state.mode
         {
             ui_columns.as_mut().map(|x| x.end_row());
         }
@@ -82,221 +235,256 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// Add empty row.
     pub fn empty_row(&mut self) {
         self.end_row();
-        self.1.column = 1;
+        self.state.column = 1;
         self.end_row();
     }
 
     /// Move to the next row.
     /// No-op if we are already at the begining of the new row.
     pub fn end_row(&mut self) {
-        if self.1.column != 0 {
-            *self.1.row_cursor.last_mut().unwrap() += 1;
+        self.keep_cell_stop();
+        self.advance_temp_rect();
+        if self.state.collapsing_header {
+            self.state.collapsing_header = false;
+            let id = self.id();
+            if !self.collapsed() {
+                self.state
+                    .collapsed
+                    .push(self.ui.data_mut(|d| d.get_temp_mut_or(id, false).clone()));
+            }
         }
-        let indent = self.1.row_cursor.len();
-        let mut width_max = self.1.width_max;
-        let width_max_prev = self.1.width_max_prev;
+        if self.state.column != 0 {
+            *self.state.row_cursor.last_mut().unwrap() += 1;
+        }
+        let indent = self.state.row_cursor.len();
+        let mut width_max = self.state.width_max;
+        let width_max_prev = self.state.width_max_prev;
+        let collapsed = self.collapsed();
         if let ExUiMode::Compact {
             ref mut ui_row,
             ref mut ui_columns,
-        } = self.1.mode
+        } = self.state.mode
         {
-            let mut rect_columns = ui_columns.as_ref().map_or(Rect::NOTHING, |u| u.min_rect());
+            let mut rect_columns = ui_columns.as_ref().map_or(
+                ui_row
+                    .last_mut()
+                    .map_or(Rect::NOTHING, |fr| fr.content_ui.min_rect()),
+                |u| u.min_rect(),
+            );
             *ui_columns = None;
             width_max = width_max.max(rect_columns.max.x);
             if ui_row.len() >= indent {
                 //indent kept at the same level
                 let mut row_poped = ui_row.pop().unwrap();
-                row_poped.end(width_max.max(width_max_prev), rect_columns);
-                rect_columns = row_poped.ui().min_rect();
+                if !collapsed {
+                    row_poped.end(width_max.max(width_max_prev), rect_columns);
+                    rect_columns = row_poped.ui().min_rect();
+                }
             }
 
-            let ui = ui_row.last_mut().map_or(self.0.borrow_mut(), |x| x.ui());
+            let ui = ui_row.last_mut().map_or(self.ui.borrow_mut(), |x| x.ui());
             ui.advance_cursor_after_rect(rect_columns);
             ui.end_row();
             let fr = FrameRun::begin(Frame::group(ui.style()), indent, ui);
             ui_row.push(fr);
 
             //TODO add frame configuration
-        } else if self.1.column != 0 {
-            self.0.end_row()
+        } else if self.state.column != 0 {
+            self.ui.end_row()
         }
-        self.1.column = 0;
-        self.1.width_max = width_max;
+        self.state.column = 0;
+        self.state.width_max = width_max;
     }
 
-    fn start_collapsing(&mut self) {
-        if !self.1.start_collapsed {
-            self.1.start_collapsed = true;
-            self.1.row_cursor.push(0);
+    pub fn start_collapsing(&mut self) {
+        if !self.state.collapsing_header {
+            self.state.collapsing_header = true;
+            self.state.row_cursor.push(0);
         }
     }
 
-    fn stop_collapsing(&mut self) {
-        self.1.start_collapsed = false;
-        if self.1.row_cursor.len() > 1 {
-            self.1.row_cursor.pop();
-            let mut width_max = self.1.width_max;
-            let width_max_prev = self.1.width_max_prev;
-            *self.1.row_cursor.last_mut().unwrap() += 1;
+    pub fn stop_collapsing(&mut self) {
+        self.temp_ui = None;
+        self.state.collapsing_header = false;
+        if self.state.row_cursor.len() > 1 {
+            self.state.row_cursor.pop();
+            let len = self.state.row_cursor.len();
+            self.state.collapsed.truncate(len);
+            let mut width_max = self.state.width_max;
+            let width_max_prev = self.state.width_max_prev;
+            let collapsed = self.collapsed();
+            *self.state.row_cursor.last_mut().unwrap() += 1;
 
             if let ExUiMode::Compact {
                 ref mut ui_row,
                 ref mut ui_columns,
-            } = self.1.mode
+            } = self.state.mode
             {
-                let rect_columns = ui_columns.as_ref().map_or(Rect::NOTHING, |u| u.min_rect());
+                let rect_columns = ui_columns.as_ref().map_or(
+                    ui_row
+                        .last_mut()
+                        .map_or(Rect::NOTHING, |fr| fr.content_ui.min_rect()),
+                    |u| u.min_rect(),
+                );
                 width_max = width_max.max(rect_columns.max.x);
                 let mut row_poped = ui_row.pop().unwrap();
-                row_poped.end(width_max.max(width_max_prev), rect_columns);
+                if !collapsed {
+                    row_poped.end(width_max.max(width_max_prev), rect_columns);
+                }
                 ui_row
                     .last_mut()
                     .map(|u| u.ui().advance_cursor_after_rect(row_poped.ui().min_rect()));
             }
-            self.1.width_max = width_max;
+            self.state.width_max = width_max;
+        }
+        self.end_row();
+    }
+
+    pub fn add_ex_opt<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+        if self.collapsed() {
+            None
+        } else {
+            Some(add_contents(self))
         }
     }
 
-    pub(crate) fn add_ex<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> R {
-        self.1.column += 1;
-        let column = self.1.column;
-        let mut start_collapsed = self.1.start_collapsed;
-        let id = self.id();
-        let ret = if let ExUiMode::Compact {
-            ref mut ui_row,
-            ref mut ui_columns,
-        } = self.1.mode
-        {
-            match column {
-                1 => {
-                    ui_row
-                        .last_mut()
-                        .unwrap()
-                        .ui()
-                        .horizontal(|ui| {
-                            if start_collapsed {
-                                let collapsed =
-                                    self.0.data_mut(|d| d.get_temp_mut_or(id, false).clone());
-                                let icon = if collapsed { "⏵" } else { "⏷" };
-                                if ui.add(Button::new(icon).frame(false).small()).clicked() {
-                                    self.0.data_mut(|d| d.insert_temp(id, !collapsed));
-                                }
-                                start_collapsed = false;
-                            };
-                            add_contents(ui)
-                        })
-                        .inner
-                }
-                2 => {
-                    let ui = &mut ui_row.last_mut().unwrap().ui();
-                    let indent = ui.spacing().indent;
-                    let mut child_rect = ui.available_rect_before_wrap();
-                    child_rect.min.x += indent;
-
-                    *ui_columns = Some(ui.child_ui_with_id_source(
-                        child_rect,
-                        Layout::left_to_right(Align::TOP).with_main_wrap(true),
-                        "indent",
-                    ));
-
-                    add_contents(ui_columns.as_mut().unwrap())
-                }
-                _ => {
-                    if let Some(ref mut col) = ui_columns {
-                        col.separator();
-                        add_contents(col)
-                    } else {
-                        unreachable!()
-                    }
-                }
-            }
-        } else {
-            if start_collapsed && column == 1 {
-                self.0
-                    .horizontal(|ui| {
-                        for _ in 0..self.1.row_cursor.len() - 2 {
-                            ui.separator();
-                        }
-                        let collapsed = ui.data_mut(|d| d.get_temp_mut_or(id, false).clone());
-                        let icon = if collapsed { "⏵" } else { "⏷" };
-                        if ui.add(Button::new(icon).frame(false).small()).clicked() {
-                            ui.data_mut(|d| d.insert_temp(id, !collapsed));
-                        }
-                        start_collapsed = false;
-                        add_contents(ui)
-                    })
-                    .inner
-            } else if self.1.row_cursor.len() > 1 {
-                //if rows are collapsed, we should not reach here(reaching here should be stoped by `collapsing_rows_body`)
-                if column == 1 {
-                    self.0
-                        .horizontal(|ui| {
-                            for _ in 0..self.1.row_cursor.len() - 1 {
-                                ui.separator();
-                            }
-
-                            add_contents(ui)
-                        })
-                        .inner
-                } else {
-                    add_contents(&mut self.0)
-                }
-            } else {
-                add_contents(&mut self.0)
-            }
-        };
-        self.1.start_collapsed = start_collapsed;
-        ret
+    pub fn collapsed(&self) -> bool {
+        Some(true) == self.state.collapsed.last().copied()
     }
 
-    /// Set initial collapse state of this level collapsible rows. Function will be executed once for each collapsible
-    pub fn collapsing_rows_initial_state(&mut self, start_collapsed: impl FnOnce() -> bool) {
-        self.start_collapsing();
-        let id = self.id();
-        self.0
-            .data_mut(|d| d.get_temp_mut_or(id, start_collapsed()).clone());
-    }
-    /// Add header row to collapsible subdata
-    pub fn collapsing_rows_header<T>(&mut self, header_row: impl FnOnce(&mut ExUi) -> T) -> T {
-        self.start_collapsing();
-        let ret = header_row(self);
-        ret
-    }
-
-    /// Add rows with subdata, subdata rows are hidden behind collapsible
-    pub fn collapsing_rows_body<T>(
+    /// Adds collapsible rows header
+    pub fn collapsing_rows(
         &mut self,
-        collapsing_rows: impl FnOnce(&mut ExUi) -> T,
-    ) -> Option<T> {
-        let id = self.id();
-        let collapsed = self.0.data_mut(|d| d.get_temp_mut_or(id, false).clone());
-        let body_response;
-        self.end_row();
-        if collapsed {
-            body_response = None;
-            if let ExUiMode::Compact { ref mut ui_row, .. } = self.1.mode {
-                let ui = &mut ui_row.last_mut().unwrap().content_ui;
-
-                let mut child = ui.child_ui(
-                    ui.available_rect_before_wrap(),
-                    Layout::left_to_right(Align::TOP),
-                );
-                child.label("⚫⚫⚫");
-                ui.expand_to_include_rect(child.min_rect())
-            }
-        } else {
-            body_response = Some(collapsing_rows(self));
+        header_row: impl FnOnce(&mut ExUi) -> Response,
+    ) -> CollapsingRows<'a, 'b, '_> {
+        self.maybe_collapsing_rows(true, header_row)
+    }
+    /// If `collapsible` == true, adds collapsible rows header,
+    /// otherwise simply adds `header_row` (without collapse/uncollapse button)
+    pub fn maybe_collapsing_rows(
+        &mut self,
+        collapsible: bool,
+        header_row: impl FnOnce(&mut ExUi) -> Response,
+    ) -> CollapsingRows<'a, 'b, '_> {
+        if collapsible {
+            self.start_collapsing()
         }
-        self.stop_collapsing();
-        self.end_row();
-        body_response
+        CollapsingRows {
+            header_response: header_row(self),
+            exui: self,
+            collapsible,
+        }
     }
 
     /// In grid mode this is the same as `Self::label`, in compact mode it uses larger font in first column (currently `Self::heading`).
     pub fn extext(&mut self, text: impl Into<RichText>) -> Response {
-        if matches!(self.1.mode, ExUiMode::Compact { .. }) && self.1.column == 0 {
-            self.heading(text)
+        if matches!(self.state.mode, ExUiMode::Compact { .. }) && self.state.column == 0 {
+            self.add_ex_opt(|ui| ui.heading(text))
         } else {
-            self.label(text.into())
+            self.add_ex_opt(|ui| ui.label(text.into()))
+        }
+        .unwrap_or(self.dummy_response())
+    }
+    pub fn dummy_response(&mut self) -> Response {
+        self.interact(
+            egui::Rect::NOTHING,
+            "dummy".into(),
+            egui::Sense {
+                click: false,
+                drag: false,
+                focusable: false,
+            },
+        )
+    }
+    pub fn get_column(&self) -> usize {
+        self.state.column
+    }
+    pub fn get_widgets_in_cell(&self) -> Option<usize> {
+        self.keep_cell.as_ref().map(|(_, wic)| *wic)
+    }
+    /// Creates sub-ui which will be used when adding next widgets
+    /// (following widgets will stay in the same grid cell)
+    /// Consecutive calls will stay with the same sub-ui (no-op)
+    /// Sub-ui will be exited when [`Self::keep_cell_stop`] or [`Self::end_row`] is called
+    pub fn keep_cell_start(&mut self) {
+        if self.keep_cell.is_none() {
+            let ui: &mut Ui = &mut *self;
+            self.keep_cell = Some((MaybeOwnedMut::Owned(simpleui(ui)), 0));
+        }
+    }
+    pub fn keep_cell_stop(&mut self) {
+        let rect = self.keep_cell.as_ref().map(|ui| ui.0.min_rect());
+
+        if let Some(rect) = rect {
+            self._ui().advance_cursor_after_rect(rect);
+            self.keep_cell = None
+        }
+    }
+}
+fn simpleui(ui: &mut Ui) -> Ui {
+    let max_rect = ui.available_rect_before_wrap();
+    let layout = Layout::left_to_right(Default::default());
+    ui.child_ui(max_rect, layout)
+}
+#[must_use = "Call [`Self::body(..)`] or [`Self::body_simple(..)`]"]
+pub struct CollapsingRows<'a, 'b, 'c> {
+    exui: &'c mut ExUi<'a, 'b>,
+    header_response: Response,
+    collapsible: bool,
+}
+impl<'a, 'b, 'c> CollapsingRows<'a, 'b, 'c> {
+    /// Set initial collapse state of this level collapsible rows. Function will be executed once for each collapsible
+    pub fn initial_state(self, start_collapsed: impl FnOnce() -> bool) -> Self {
+        let id = self.exui.id();
+        self.exui
+            .ui
+            .data_mut(|d| d.get_temp_mut_or_insert_with(id, start_collapsed).clone());
+
+        self
+    }
+    /// Add rows with subdata, subdata rows are hidden behind collapsible
+    pub fn body(
+        self,
+        collapsing_rows: impl FnOnce(&mut ExUi) -> Response,
+    ) -> CollapsingResponse<()> {
+        let id = self.exui.id();
+        let collapsed = self
+            .exui
+            .ui
+            .data_mut(|d| d.get_temp_mut_or(id, false).clone());
+        let mut ret = CollapsingResponse {
+            header_response: self.header_response.clone(),
+            body_response: None,
+            body_returned: None,
+            openness: !collapsed as usize as f32,
+        };
+        self.exui.end_row();
+        if self.collapsible {
+            if collapsed {
+                if let ExUiMode::Compact { ref mut ui_row, .. } = self.exui.state.mode {
+                    let ui = &mut ui_row.last_mut().unwrap().content_ui;
+
+                    let mut child = ui.child_ui(
+                        ui.available_rect_before_wrap(),
+                        Layout::left_to_right(Align::TOP),
+                    );
+                    child.label("⚫⚫⚫");
+                    ui.expand_to_include_rect(child.min_rect())
+                }
+            } else {
+                ret.body_response = Some(collapsing_rows(self.exui));
+            }
+            self.exui.stop_collapsing();
+        }
+        ret
+    }
+    /// Same as [`Self::body`] but returnes summed responses from body & header
+    pub fn body_simple(self, collapsing_rows: impl FnOnce(&mut ExUi) -> Response) -> Response {
+        let cr = self.body(collapsing_rows);
+        if let Some(body) = cr.body_response {
+            body | cr.header_response
+        } else {
+            cr.header_response
         }
     }
 }

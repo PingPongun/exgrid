@@ -171,7 +171,7 @@ impl ExGrid {
                 let id = ui.id();
                 let mut ex = ui.into();
                 let ret = add_contents(&mut ex);
-                ex.data_mut(|d| d.insert_temp(id, ex.1.width_max));
+                ex.data_mut(|d| d.insert_temp(id, ex.state.width_max));
                 ret
             };
             self.grid.show(ui, add_contents)
@@ -179,15 +179,15 @@ impl ExGrid {
             let add_contents = |ui: &mut Ui| {
                 let id = ui.id();
                 let mut ex: ExUi<'_, '_> = ui.into();
-                ex.1.mode = ExUiMode::Compact {
-                    ui_row: vec![FrameRun::begin(Frame::group(ex.0.style()), 0, &mut ex.0)],
+                ex.state.mode = ExUiMode::Compact {
+                    ui_row: vec![FrameRun::begin(Frame::group(ex.ui.style()), 0, &mut ex.ui)],
                     ui_columns: None,
                 };
                 let ret = add_contents(&mut ex);
-                if ex.1.column != 0 {
+                if ex.state.column != 0 {
                     ex.end_row()
                 }
-                ex.data_mut(|d| d.insert_temp(id, ex.min_rect().width()));
+                ex.data_mut(|d| d.insert_temp(id, ex.state.width_max));
                 ret
             };
             self.grid.num_columns(1).show(ui, add_contents)
@@ -213,7 +213,8 @@ pub trait ExWidget {
 }
 impl<T: Widget> ExWidget for T {
     fn ui_ex(self, ex: &mut ExUi) -> Response {
-        ex.add(self)
+        ex.add_ex_opt(|ui| self.ui(ui))
+            .unwrap_or_else(|| ex.dummy_response())
     }
 }
 

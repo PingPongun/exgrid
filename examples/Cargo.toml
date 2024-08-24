@@ -11,4 +11,4 @@ exgrid = { path = ".." }
 
 [[bin]]
 name = "exgrid_example"
-path = "./main.rs"
+path = "./demo.rs"

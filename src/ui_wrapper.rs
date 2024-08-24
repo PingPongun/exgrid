@@ -1,10 +1,11 @@
 use egui::epaint::Hsva;
 use maybe_owned::MaybeOwnedMut;
 use std::hash::Hash;
+use std::ops::DerefMut;
 
 use crate::*;
 
-impl<'a, 'b> ExUi<'a, 'b> {
+impl<'a, 'b: 'a> ExUi<'a, 'b> {
     // ------------------------------------------------------------------------
     // Creation:
 
@@ -14,10 +15,12 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// [`ExGrid::show`].
     #[inline]
     pub fn new(ctx: Context, layer_id: LayerId, id: Id, max_rect: Rect, clip_rect: Rect) -> Self {
-        ExUi(
-            MaybeOwnedMut::Owned(Ui::new(ctx, layer_id, id, max_rect, clip_rect)),
-            Default::default(),
-        )
+        ExUi {
+            ui: MaybeOwnedMut::Owned(Ui::new(ctx, layer_id, id, max_rect, clip_rect)),
+            state: Default::default(),
+            keep_cell: None,
+            temp_ui: None,
+        }
     }
 
     /// Create a new [`ExUi`] at a specific region.
@@ -26,8 +29,8 @@ impl<'a, 'b> ExUi<'a, 'b> {
     }
 
     /// Create a new [`ExUi`]
-    pub fn ui(&mut self) -> Self {
-        self.child_ui(self.max_rect(), self.layout().clone())
+    pub fn simple_child(&mut self) -> Self {
+        self.child_ui(self.available_rect_before_wrap(), self.layout().clone())
     }
 
     /// Create a new [`ExUi`] at a specific region with a specific id.
@@ -38,15 +41,12 @@ impl<'a, 'b> ExUi<'a, 'b> {
         layout: Layout,
         id_source: impl Hash,
     ) -> Self {
-        ExUi(
-            MaybeOwnedMut::Owned(Ui::child_ui_with_id_source(
-                &mut self.0,
-                max_rect,
-                layout,
-                id_source,
-            )),
-            Default::default(),
-        )
+        ExUi {
+            ui: MaybeOwnedMut::Owned(self.ui.child_ui_with_id_source(max_rect, layout, id_source)),
+            state: Default::default(),
+            keep_cell: None,
+            temp_ui: None,
+        }
     }
 }
 // ------------------------------------------------------------------------
@@ -57,7 +57,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// Differently to [`egui::UI::id`], it changes as widgets are added to it (it is calculated based on row number on each nesting level).
     #[inline]
     pub fn id(&self) -> Id {
-        self.0.id().with(self.1.row_cursor.as_slice())
+        self.ui.id().with(self.state.row_cursor.as_slice())
     }
     /// Use this to generate widget ids for widgets that have persistent state in [`Memory`].
     pub fn make_persistent_id<IdSource>(&self, id_source: IdSource) -> Id
@@ -87,7 +87,8 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// ```
     #[inline]
     pub fn add(&mut self, widget: impl Widget) -> Response {
-        self.add_ex(|ui| widget.ui(ui))
+        self.add_ex_opt(|ui| widget.ui(ui))
+            .unwrap_or_else(|| self.dummy_response())
     }
 
     /// Add a [`Widget`] to this [`Ui`] with a given size.
@@ -129,7 +130,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// ```
     pub fn add_enabled(&mut self, enabled: bool, widget: impl Widget) -> Response {
         //TODO
-        self.0.add_enabled(enabled, widget)
+        self.ui.add_enabled(enabled, widget)
     }
 
     /// Add a section that is possibly disabled, i.e. greyed out and non-interactive.
@@ -178,7 +179,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// ```
     pub fn add_visible(&mut self, visible: bool, widget: impl Widget) -> Response {
         //TODO
-        self.0.add_visible(visible, widget)
+        self.ui.add_visible(visible, widget)
     }
 
     /// Add a section that is possibly invisible, i.e. greyed out and non-interactive.
@@ -226,7 +227,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     ///
     /// See also [`Self::scope`].
     pub fn group<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.group(add_contents))
+        self.deref_mut().group(add_contents)
     }
 
     /// Create a child Ui with an explicit [`Id`].
@@ -247,7 +248,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         id_source: impl Hash,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.push_id(id_source, add_contents))
+        self.deref_mut().push_id(id_source, add_contents)
     }
 
     /// Create a scoped child ui.
@@ -272,7 +273,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         layer_id: LayerId,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.with_layer_id(layer_id, add_contents))
+        self.deref_mut().with_layer_id(layer_id, add_contents)
     }
 
     /// A [`CollapsingHeader`] that starts out collapsed.
@@ -281,7 +282,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         heading: impl Into<WidgetText>,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> CollapsingResponse<R> {
-        self.add_ex(|ui| ui.collapsing(heading, add_contents))
+        self.deref_mut().collapsing(heading, add_contents)
     }
 
     /// Create a child ui which is indented to the right.
@@ -294,7 +295,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         id_source: impl Hash,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.indent(id_source, add_contents))
+        self.deref_mut().indent(id_source, add_contents)
     }
 
     /// Start a ui with horizontal layout.
@@ -324,7 +325,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// See also [`Self::with_layout`] for more options.
     #[inline]
     pub fn horizontal<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.horizontal(add_contents))
+        self.deref_mut().horizontal(add_contents)
     }
 
     /// Like [`Self::horizontal`], but allocates the full vertical height and then centers elements vertically.
@@ -332,7 +333,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.horizontal_centered(add_contents))
+        self.deref_mut().horizontal_centered(add_contents)
     }
 
     /// Like [`Self::horizontal`], but aligns content with top.
@@ -340,7 +341,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.horizontal_top(add_contents))
+        self.deref_mut().horizontal_top(add_contents)
     }
 
     /// Start a ui with horizontal layout that wraps to a new row
@@ -362,7 +363,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.horizontal_wrapped(add_contents))
+        self.deref_mut().horizontal_wrapped(add_contents)
     }
 
     /// Start a ui with vertical layout.
@@ -380,7 +381,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     /// See also [`Self::with_layout`] for more options.
     #[inline]
     pub fn vertical<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.vertical(add_contents))
+        self.deref_mut().vertical(add_contents)
     }
 
     /// Start a ui with vertical layout.
@@ -399,7 +400,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.vertical_centered(add_contents))
+        self.deref_mut().vertical_centered(add_contents)
     }
 
     /// Start a ui with vertical layout.
@@ -417,7 +418,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.vertical_centered_justified(add_contents))
+        self.deref_mut().vertical_centered_justified(add_contents)
     }
 
     /// The new layout will take up all available space.
@@ -440,7 +441,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         layout: Layout,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.with_layout(layout, add_contents))
+        self.deref_mut().with_layout(layout, add_contents)
     }
 
     /// This will make the next added widget centered and justified in the available space.
@@ -450,7 +451,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         &mut self,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.add_ex(|ui| ui.centered_and_justified(add_contents))
+        self.deref_mut().centered_and_justified(add_contents)
     }
 
     #[inline]
@@ -476,7 +477,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         title: impl Into<WidgetText>,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<Option<R>> {
-        self.add_ex(|ui| ui.menu_button(title, add_contents))
+        self.deref_mut().menu_button(title, add_contents)
     }
 
     /// Create a menu button with an image that when clicked will show the given menu.
@@ -502,7 +503,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         image: impl Into<Image<'c>>,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<Option<R>> {
-        self.add_ex(|ui| ui.menu_image_button(image, add_contents))
+        self.deref_mut().menu_image_button(image, add_contents)
     }
 }
 

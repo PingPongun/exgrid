@@ -23,5 +23,11 @@ egui27 = { version = "0.27", package = "egui", default-features = false, optiona
 log = { version = "0.4", optional = true, features = ["std"] }
 maybe-owned = "0.3.4"
 
+[dev-dependencies]
+eframe = { version = "0.27.2" }
+
 [features]
 default = ["egui27"]
+
+[[example]]
+name = "demo"
