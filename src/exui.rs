@@ -189,7 +189,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                     self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
                     return self.temp_ui.as_mut().unwrap();
                 } else if row_cursor.len() > 1 {
-                    //if rows are collapsed, we should not reach here(reaching here should be stoped by `collapsing_rows_body`)
+                    //if rows are collapsed, we should not reach here(reaching here should be stopped by `collapsing_rows_body`)
                     if *column == 1 {
                         let mut ui = simpleui(self.ui.as_mut());
                         for _ in 0..row_cursor.len() - 1 {
@@ -240,7 +240,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
     }
 
     /// Move to the next row.
-    /// No-op if we are already at the begining of the new row.
+    /// No-op if we are already at the beginning of the new row.
     pub fn end_row(&mut self) {
         self.keep_cell_stop();
         self.advance_temp_rect();
@@ -275,10 +275,10 @@ impl<'a, 'b> ExUi<'a, 'b> {
             width_max = width_max.max(rect_columns.max.x);
             if ui_row.len() >= indent {
                 //indent kept at the same level
-                let mut row_poped = ui_row.pop().unwrap();
+                let mut row_popped = ui_row.pop().unwrap();
                 if !collapsed {
-                    row_poped.end(width_max.max(width_max_prev), rect_columns);
-                    rect_columns = row_poped.ui().min_rect();
+                    row_popped.end(width_max.max(width_max_prev), rect_columns);
+                    rect_columns = row_popped.ui().min_rect();
                 }
             }
 
@@ -327,13 +327,13 @@ impl<'a, 'b> ExUi<'a, 'b> {
                     |u| u.min_rect(),
                 );
                 width_max = width_max.max(rect_columns.max.x);
-                let mut row_poped = ui_row.pop().unwrap();
+                let mut row_popped = ui_row.pop().unwrap();
                 if !collapsed {
-                    row_poped.end(width_max.max(width_max_prev), rect_columns);
+                    row_popped.end(width_max.max(width_max_prev), rect_columns);
                 }
                 ui_row
                     .last_mut()
-                    .map(|u| u.ui().advance_cursor_after_rect(row_poped.ui().min_rect()));
+                    .map(|u| u.ui().advance_cursor_after_rect(row_popped.ui().min_rect()));
             }
             self.state.width_max = width_max;
         }
@@ -478,7 +478,7 @@ impl<'a, 'b, 'c> CollapsingRows<'a, 'b, 'c> {
         }
         ret
     }
-    /// Same as [`Self::body`] but returnes summed responses from body & header
+    /// Same as [`Self::body`] but returns summed responses from body & header
     pub fn body_simple(self, collapsing_rows: impl FnOnce(&mut ExUi) -> Response) -> Response {
         let cr = self.body(collapsing_rows);
         if let Some(body) = cr.body_response {

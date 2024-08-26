@@ -218,9 +218,9 @@ impl<T: Widget> ExWidget for T {
     }
 }
 
-/// Exatly the same as [`ExWidget`], but for convinence function is named as in [`egui::Widget`]
+/// Exactly the same as [`ExWidget`], but for convenience function is named as in [`egui::Widget`]
 #[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
-pub trait ExWidgetConvinence {
+pub trait ExWidgetConvenience {
     /// Allocate space, interact, paint, and return a [`Response`].
     ///
     /// Note that this consumes `self`.
@@ -230,7 +230,7 @@ pub trait ExWidgetConvinence {
     /// Tip: you can `impl Widget for &mut YourObject { }`.
     fn ui(self, ex_ui: &mut ExUi) -> Response;
 }
-impl<T: ExWidget> ExWidgetConvinence for T {
+impl<T: ExWidget> ExWidgetConvenience for T {
     fn ui(self, ex: &mut ExUi) -> Response {
         self.ui_ex(ex)
     }
@@ -245,7 +245,7 @@ pub(crate) struct FrameRun {
     where_to_put_background: ShapeIdx,
     indent: usize,
     pub content_ui: Ui,
-    pub parrent_width: f32,
+    pub parent_width: f32,
 }
 
 impl FrameRun {
@@ -271,13 +271,13 @@ impl FrameRun {
             where_to_put_background,
             indent,
             content_ui,
-            parrent_width: ui.min_rect().max.y,
+            parent_width: ui.min_rect().max.y,
         }
     }
 
     fn paint_rect(&self) -> Rect {
         let mut rect = self.content_ui.min_rect();
-        rect.max.x = rect.max.x.max(self.parrent_width);
+        rect.max.x = rect.max.x.max(self.parent_width);
         self.frame.inner_margin.expand_rect(rect)
     }
 
