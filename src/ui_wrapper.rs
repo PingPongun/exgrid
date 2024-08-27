@@ -16,7 +16,15 @@ impl<'a, 'b: 'a> ExUi<'a, 'b> {
     #[inline]
     pub fn new(ctx: Context, layer_id: LayerId, id: Id, max_rect: Rect, clip_rect: Rect) -> Self {
         ExUi {
-            ui: MaybeOwnedMut::Owned(Ui::new(ctx, layer_id, id, max_rect, clip_rect)),
+            ui: MaybeOwnedMut::Owned(Ui::new(
+                ctx,
+                layer_id,
+                id,
+                max_rect,
+                clip_rect,
+                #[cfg(not(feature = "egui23"))]
+                Default::default(),
+            )),
             state: Default::default(),
             keep_cell: None,
             temp_ui: None,
@@ -42,7 +50,13 @@ impl<'a, 'b: 'a> ExUi<'a, 'b> {
         id_source: impl Hash,
     ) -> Self {
         ExUi {
-            ui: MaybeOwnedMut::Owned(self.ui.child_ui_with_id_source(max_rect, layout, id_source)),
+            ui: MaybeOwnedMut::Owned(self.ui.child_ui_with_id_source(
+                max_rect,
+                layout,
+                id_source,
+                #[cfg(not(feature = "egui23"))]
+                None,
+            )),
             state: Default::default(),
             keep_cell: None,
             temp_ui: None,
@@ -158,6 +172,11 @@ impl<'a, 'b> ExUi<'a, 'b> {
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
         self.scope(|ui| {
+            #[cfg(feature = "egui28")]
+            if !enabled {
+                ui.disable();
+            }
+            #[cfg(not(feature = "egui28"))]
             ui.set_enabled(enabled);
             add_contents(ui)
         })
@@ -207,6 +226,11 @@ impl<'a, 'b> ExUi<'a, 'b> {
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
         self.scope(|ui| {
+            #[cfg(feature = "egui28")]
+            if visible {
+                ui.set_invisible();
+            }
+            #[cfg(not(feature = "egui28"))]
             ui.set_visible(visible);
             add_contents(ui)
         })

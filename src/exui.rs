@@ -112,9 +112,14 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                     "dummy".into(),
                     rect,
                     Rect::NOTHING,
+                    #[cfg(not(feature = "egui23"))]
+                    Default::default(),
                 ))
             });
 
+            #[cfg(feature = "egui28")]
+            u.set_invisible();
+            #[cfg(not(feature = "egui28"))]
             u.set_visible(false);
             return u;
         }
@@ -162,6 +167,8 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                             child_rect,
                             Layout::left_to_right(Align::TOP).with_main_wrap(true),
                             "indent",
+                            #[cfg(not(feature = "egui23"))]
+                            None,
                         ));
 
                         return ui_columns.as_mut().unwrap();
@@ -424,7 +431,12 @@ impl<'a, 'b> ExUi<'a, 'b> {
 fn simpleui(ui: &mut Ui) -> Ui {
     let max_rect = ui.available_rect_before_wrap();
     let layout = Layout::left_to_right(Default::default());
-    ui.child_ui(max_rect, layout)
+    ui.child_ui(
+        max_rect,
+        layout,
+        #[cfg(not(feature = "egui23"))]
+        None,
+    )
 }
 #[must_use = "Call [`Self::body(..)`] or [`Self::body_simple(..)`]"]
 pub struct CollapsingRows<'a, 'b, 'c> {
@@ -467,6 +479,8 @@ impl<'a, 'b, 'c> CollapsingRows<'a, 'b, 'c> {
                     let mut child = ui.child_ui(
                         ui.available_rect_before_wrap(),
                         Layout::left_to_right(Align::TOP),
+                        #[cfg(not(feature = "egui23"))]
+                        None,
                     );
                     child.label("⚫⚫⚫");
                     ui.expand_to_include_rect(child.min_rect())

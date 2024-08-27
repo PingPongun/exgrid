@@ -1,7 +1,3 @@
-#[cfg(feature = "egui21")]
-use egui21 as egui;
-#[cfg(feature = "egui22")]
-use egui22 as egui;
 #[cfg(feature = "egui23")]
 use egui23 as egui;
 #[cfg(feature = "egui24")]
@@ -12,6 +8,8 @@ use egui25 as egui;
 use egui26 as egui;
 #[cfg(feature = "egui27")]
 use egui27 as egui;
+#[cfg(feature = "egui28")]
+use egui28 as egui;
 
 use egui::layers::ShapeIdx;
 use egui::*;
@@ -253,6 +251,9 @@ impl FrameRun {
         let where_to_put_background = ui.painter().add(Shape::Noop);
         let outer_rect_bounds = ui.available_rect_before_wrap();
 
+        #[cfg(feature = "egui28")]
+        let mut inner_rect = outer_rect_bounds - (frame.inner_margin + frame.outer_margin);
+        #[cfg(not(feature = "egui28"))]
         let mut inner_rect =
             (frame.inner_margin + frame.outer_margin).shrink_rect(outer_rect_bounds);
         if indent > 1 {
@@ -263,7 +264,12 @@ impl FrameRun {
         inner_rect.max.x = inner_rect.max.x.max(inner_rect.min.x);
         inner_rect.max.y = inner_rect.max.y.max(inner_rect.min.y);
 
-        let content_ui = ui.child_ui(inner_rect, Layout::top_down_justified(Align::LEFT));
+        let content_ui = ui.child_ui(
+            inner_rect,
+            Layout::top_down_justified(Align::LEFT),
+            #[cfg(not(feature = "egui23"))]
+            None,
+        );
 
         FrameRun {
             empty: true,
@@ -278,12 +284,20 @@ impl FrameRun {
     fn paint_rect(&self) -> Rect {
         let mut rect = self.content_ui.min_rect();
         rect.max.x = rect.max.x.max(self.parent_width);
-        self.frame.inner_margin.expand_rect(rect)
+        #[cfg(feature = "egui28")]
+        let ret = rect + self.frame.inner_margin;
+        #[cfg(not(feature = "egui28"))]
+        let ret = self.frame.inner_margin.expand_rect(rect);
+        ret
     }
 
     fn content_with_margin(&self) -> Rect {
-        (self.frame.total_margin() + egui::Margin::same(self.frame.stroke.width))
-            .expand_rect(self.content_ui.min_rect())
+        let margin = self.frame.total_margin() + egui::Margin::same(self.frame.stroke.width);
+        #[cfg(feature = "egui28")]
+        let ret = self.content_ui.min_rect() + margin;
+        #[cfg(not(feature = "egui28"))]
+        let ret = margin.expand_rect(self.content_ui.min_rect());
+        ret
     }
 
     pub fn end(&mut self, max_x: f32, advance_before: Rect) {
@@ -291,8 +305,9 @@ impl FrameRun {
             - ((self.indent.wrapping_sub(1)) as f32
                 * (self.frame.total_margin().right + self.frame.stroke.width));
         self.content_ui.advance_cursor_after_rect(advance_before);
-        self.content_ui
-            .expand_to_include_rect(self.content_ui.min_rect().with_max_x(width_from_previous));
+        let mut rect = self.content_ui.min_rect();
+        rect.max.x = width_from_previous;
+        self.content_ui.expand_to_include_rect(rect);
         if !self.empty {
             let paint_rect = self.paint_rect();
 

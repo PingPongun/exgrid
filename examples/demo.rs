@@ -12,7 +12,7 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "ExGrid example",
         options,
-        Box::new(|_| Box::new(MyApp::default())),
+        Box::new(|_| Ok(Box::new(MyApp::default()))),
     )
 }
 
@@ -24,6 +24,7 @@ impl eframe::App for MyApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {
                 ExGrid::new("some_unique_id")
+                    .mode(GridMode::CompactWidth)
                     // .mode(GridMode::Traditional)
                     .show(ui, |ui| {
                         ui.start_collapsing();

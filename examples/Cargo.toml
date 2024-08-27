@@ -1,12 +1,12 @@
 [package]
 name = "exgrid_example"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["PingPongun <pp.pp4@vp.pl>"]
 edition = "2021"
 
 [dependencies]
-eframe = { version = "0.27.2" }
-egui = { version = "0.27.2" }
+eframe = { version = "0.28" }
+egui = { version = "0.28" }
 exgrid = { path = ".." }
 
 [[bin]]
