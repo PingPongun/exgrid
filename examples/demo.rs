@@ -12,14 +12,17 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "ExGrid example",
         options,
-        Box::new(|_| Ok(Box::new(MyApp::default()))),
+        #[cfg(feature = "egui28")]
+        Box::new(|_creation_context| Ok(Box::<DemoApp>::default())),
+        #[cfg(not(feature = "egui28"))]
+        Box::new(|_creation_context| Box::<DemoApp>::default()),
     )
 }
 
 #[derive(Default)]
-struct MyApp {}
+struct DemoApp {}
 
-impl eframe::App for MyApp {
+impl eframe::App for DemoApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both().show(ui, |ui| {

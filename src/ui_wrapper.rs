@@ -22,7 +22,7 @@ impl<'a, 'b: 'a> ExUi<'a, 'b> {
                 id,
                 max_rect,
                 clip_rect,
-                #[cfg(not(feature = "egui23"))]
+                #[cfg(feature = "egui28")]
                 Default::default(),
             )),
             state: Default::default(),
@@ -54,7 +54,7 @@ impl<'a, 'b: 'a> ExUi<'a, 'b> {
                 max_rect,
                 layout,
                 id_source,
-                #[cfg(not(feature = "egui23"))]
+                #[cfg(feature = "egui28")]
                 None,
             )),
             state: Default::default(),

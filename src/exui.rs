@@ -76,7 +76,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
         }
     }
     fn advance_temp_rect(&mut self) {
-        if self.collapsed() {
+        if self.collapsed() || self.keep_cell.is_some() {
             return;
         }
         let temp_rect = self
@@ -112,7 +112,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                     "dummy".into(),
                     rect,
                     Rect::NOTHING,
-                    #[cfg(not(feature = "egui23"))]
+                    #[cfg(feature = "egui28")]
                     Default::default(),
                 ))
             });
@@ -167,7 +167,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                             child_rect,
                             Layout::left_to_right(Align::TOP).with_main_wrap(true),
                             "indent",
-                            #[cfg(not(feature = "egui23"))]
+                            #[cfg(feature = "egui28")]
                             None,
                         ));
 
@@ -424,6 +424,7 @@ impl<'a, 'b> ExUi<'a, 'b> {
 
         if let Some(rect) = rect {
             self._ui().advance_cursor_after_rect(rect);
+            self.temp_ui = None;
             self.keep_cell = None
         }
     }
@@ -434,7 +435,7 @@ fn simpleui(ui: &mut Ui) -> Ui {
     ui.child_ui(
         max_rect,
         layout,
-        #[cfg(not(feature = "egui23"))]
+        #[cfg(feature = "egui28")]
         None,
     )
 }
@@ -479,7 +480,7 @@ impl<'a, 'b, 'c> CollapsingRows<'a, 'b, 'c> {
                     let mut child = ui.child_ui(
                         ui.available_rect_before_wrap(),
                         Layout::left_to_right(Align::TOP),
-                        #[cfg(not(feature = "egui23"))]
+                        #[cfg(feature = "egui28")]
                         None,
                     );
                     child.label("⚫⚫⚫");

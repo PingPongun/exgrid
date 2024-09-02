@@ -267,7 +267,7 @@ impl FrameRun {
         let content_ui = ui.child_ui(
             inner_rect,
             Layout::top_down_justified(Align::LEFT),
-            #[cfg(not(feature = "egui23"))]
+            #[cfg(feature = "egui28")]
             None,
         );
 
