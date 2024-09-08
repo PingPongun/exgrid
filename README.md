@@ -1,7 +1,8 @@
 # `ExGrid` - Extraordinary Grid Layout for `egui`
 
 [![crates.io](https://img.shields.io/crates/v/exgrid.svg)](https://crates.io/crates/exgrid)
-[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/PingPongun/exgrid/blob/master/LICENSE)
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/PingPongun/exgrid/blob/master/LICENSE-MIT)
+[![APACHE 2.0](https://img.shields.io/badge/license-Apache-blue.svg)](https://github.com/PingPongun/exgrid/blob/master/LICENSE-APACHE)
 
 ExGrid- drop-in replacement for egui::Grid with superpowers:
 
@@ -19,3 +20,7 @@ exgrid = { version = "0.2", default-features = false, features = [ "egui25" ] }
 OR use `[patch]` section. Currently `exgrid` supports `egui 0.23-0.28`.
 
 Default egui version feature will be updated to newest egui on semver minor release(0.3).
+
+## License
+
+`egui_struct` is licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE).

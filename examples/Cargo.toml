@@ -2,6 +2,7 @@
 name = "exgrid_example"
 version = "0.2.0"
 authors = ["PingPongun <pp.pp4@vp.pl>"]
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [dependencies]
