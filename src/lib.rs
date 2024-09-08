@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #[cfg(feature = "egui23")]
 use egui23 as egui;
 #[cfg(feature = "egui24")]
@@ -190,47 +191,6 @@ impl ExGrid {
             };
             self.grid.num_columns(1).show(ui, add_contents)
         }
-    }
-}
-
-/// Similar to [`egui::Widget`], but for use with [`ExUi`]
-///
-/// Anything implementing Widget can be added to a [`ExUi`] with [`ExUi::add`], but this trait is if you prefer to use `widget.ui_ex(ui)`.
-///
-/// This trait is implemented for all types that implement [`egui::Widget`]
-#[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
-pub trait ExWidget {
-    /// Allocate space, interact, paint, and return a [`Response`].
-    ///
-    /// Note that this consumes `self`.
-    /// This is because most widgets ([`Button`], [`TextEdit`] etc) are
-    /// [builders](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html)
-    ///
-    /// Tip: you can `impl Widget for &mut YourObject { }`.
-    fn ui_ex(self, ex_ui: &mut ExUi) -> Response;
-}
-impl<T: Widget> ExWidget for T {
-    fn ui_ex(self, ex: &mut ExUi) -> Response {
-        ex.add_ex_opt(|ui| self.ui(ui))
-            .unwrap_or_else(|| ex.dummy_response())
-    }
-}
-
-/// Exactly the same as [`ExWidget`], but for convenience function is named as in [`egui::Widget`]
-#[must_use = "You should put this widget in an ui with `ui.add(widget);`"]
-pub trait ExWidgetConvenience {
-    /// Allocate space, interact, paint, and return a [`Response`].
-    ///
-    /// Note that this consumes `self`.
-    /// This is because most widgets ([`Button`], [`TextEdit`] etc) are
-    /// [builders](https://doc.rust-lang.org/1.0.0/style/ownership/builders.html)
-    ///
-    /// Tip: you can `impl Widget for &mut YourObject { }`.
-    fn ui(self, ex_ui: &mut ExUi) -> Response;
-}
-impl<T: ExWidget> ExWidgetConvenience for T {
-    fn ui(self, ex: &mut ExUi) -> Response {
-        self.ui_ex(ex)
     }
 }
 

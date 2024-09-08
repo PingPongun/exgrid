@@ -1,13 +1,17 @@
 # `ExGrid` - Extraordinary Grid Layout for `egui`
 
 [![crates.io](https://img.shields.io/crates/v/exgrid.svg)](https://crates.io/crates/exgrid)
+[![Documentation](https://docs.rs/egui_struct/badge.svg)](https://docs.rs/exgrid)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/PingPongun/exgrid/blob/master/LICENSE-MIT)
 [![APACHE 2.0](https://img.shields.io/badge/license-Apache-blue.svg)](https://github.com/PingPongun/exgrid/blob/master/LICENSE-APACHE)
 
-ExGrid- drop-in replacement for egui::Grid with superpowers:
+`ExGrid`- drop-in replacement for `egui::Grid` with superpowers:
 
 - alternative/improved layout mode dedicated to narrow windows (it's not grid there, but rather some group based layout)
 - supports "subdata" (rows that are indented hidden behind collapsible, but columns are still aligned with top grid)
+
+`ExGrid` uses wrapper around `egui::Ui` named `exgrid::ExUi`, that offers some convenience functions.
 
 ## egui version
 
