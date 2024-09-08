@@ -27,6 +27,9 @@ pub(crate) struct ExUiInner {
     pub(crate) row_cursor: Vec<usize>,
     pub(crate) width_max_prev: f32,
     pub(crate) width_max: f32,
+    /// 0 means widgets will be added in enabled state,
+    /// higher numbers indicate number of `Self::start_disabled` not matched by `Self::stop_disabled`
+    pub(crate) disabled: usize,
 
     pub(crate) mode: ExUiMode,
     pub(crate) collapsed: Vec<bool>,
@@ -39,6 +42,7 @@ impl Default for ExUiInner {
             collapsing_header: false,
             width_max_prev: 0.0,
             width_max: 0.0,
+            disabled: 0,
             row_cursor: vec![0],
             mode: Default::default(),
             collapsed: vec![false],
@@ -99,6 +103,20 @@ impl<'a, 'b> ExUi<'a, 'b> {
         self.temp_ui = None;
     }
 }
+fn disable_ui<'a: 'd, 'b: 'd, 'c: 'd, 'd>(
+    temp_ui: &'c mut Option<MaybeOwnedMut<'a, Ui>>,
+    ui: &'b mut Ui,
+    disabled: usize,
+) -> &'d mut Ui {
+    if disabled != 0 {
+        let mut ui = simpleui(ui);
+        ui.disable();
+        *temp_ui = Some(MaybeOwnedMut::Owned(ui));
+        return temp_ui.as_mut().unwrap();
+    } else {
+        return ui;
+    }
+}
 impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         if self.collapsed() {
@@ -130,7 +148,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
         let id = self.id();
         if let Some((ui, wic)) = &mut self.keep_cell {
             *wic += 1;
-            return ui;
+            disable_ui(&mut self.temp_ui, ui, self.state.disabled)
         } else {
             self.state.column += 1;
             let ExUiInner {
@@ -138,6 +156,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                 collapsing_header,
                 row_cursor,
                 mode,
+                disabled,
                 ..
             } = self.state.as_mut();
 
@@ -157,6 +176,9 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                                 self.ui.data_mut(|d| d.insert_temp(id, !collapsed));
                             }
                         };
+                        if *disabled != 0 {
+                            ui.disable();
+                        }
                         self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
                         return self.temp_ui.as_mut().unwrap();
                     }
@@ -174,12 +196,16 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                             None,
                         ));
 
-                        return ui_columns.as_mut().unwrap();
+                        return disable_ui(
+                            &mut self.temp_ui,
+                            ui_columns.as_mut().unwrap(),
+                            *disabled,
+                        );
                     }
                     _ => {
                         if let Some(ref mut col) = ui_columns {
                             col.separator();
-                            return col;
+                            return disable_ui(&mut self.temp_ui, col, *disabled);
                         } else {
                             unreachable!()
                         }
@@ -196,6 +222,9 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                     if ui.add(Button::new(icon).frame(false).small()).clicked() {
                         ui.data_mut(|d| d.insert_temp(id, !collapsed));
                     }
+                    if *disabled != 0 {
+                        ui.disable();
+                    }
                     self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
                     return self.temp_ui.as_mut().unwrap();
                 } else if row_cursor.len() > 1 {
@@ -205,13 +234,16 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                         for _ in 0..row_cursor.len() - 1 {
                             ui.separator();
                         }
+                        if *disabled != 0 {
+                            ui.disable();
+                        }
                         self.temp_ui = Some(MaybeOwnedMut::Owned(ui));
                         return self.temp_ui.as_mut().unwrap();
                     } else {
-                        return self.ui.as_mut();
+                        return disable_ui(&mut self.temp_ui, self.ui.as_mut(), *disabled);
                     }
                 } else {
-                    return self.ui.as_mut();
+                    return disable_ui(&mut self.temp_ui, self.ui.as_mut(), *disabled);
                 }
             };
         }
@@ -430,6 +462,18 @@ impl<'a, 'b> ExUi<'a, 'b> {
             self.temp_ui = None;
             self.keep_cell = None
         }
+    }
+}
+
+impl<'a, 'b> ExUi<'a, 'b> {
+    /// Until `Self::stop_disabled` all widgets will be added in disabled state
+    /// Nested calls are allowed and require matching number of `Self::stop_disabled` to reenable Ui
+    pub fn start_disabled(&mut self) {
+        self.state.disabled += 1
+    }
+    /// If Ui has been disabled with `Self::start_disabled`, reenable it
+    pub fn stop_disabled(&mut self) {
+        self.state.disabled.overflowing_sub(1).0;
     }
 }
 #[allow(nonstandard_style)]
