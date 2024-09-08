@@ -1,4 +1,7 @@
+use egui::mutex::Mutex;
 use maybe_owned::MaybeOwnedMut;
+use once_cell::sync::Lazy;
+use std::any::Any;
 use std::borrow::BorrowMut;
 use std::ops::{Deref, DerefMut};
 
@@ -429,6 +432,28 @@ impl<'a, 'b> ExUi<'a, 'b> {
         }
     }
 }
+#[allow(nonstandard_style)]
+static __egui_struct_mut_prior_add__: Lazy<
+    Mutex<std::collections::HashMap<Id, Box<dyn Any + Send>>>,
+> = Lazy::new(|| Default::default());
+
+impl<'a, 'b> ExUi<'a, 'b> {
+    /// Insert a value that will not be persisted. (Similar function to `egui::UI::data_mut`, but less strict bounds)
+    #[inline]
+    pub fn data_store<T: Any + Send>(&mut self, id: Id, value: Box<T>) {
+        __egui_struct_mut_prior_add__.lock().insert(id, value);
+    }
+    /// Remove data from storage.
+    #[inline]
+    pub fn data_remove<T: Any + Send>(&mut self, id: Id) -> Option<Box<T>> {
+        __egui_struct_mut_prior_add__
+            .lock()
+            .remove(&id)
+            .map(|x| x.downcast().ok())
+            .flatten()
+    }
+}
+
 fn simpleui(ui: &mut Ui) -> Ui {
     let max_rect = ui.available_rect_before_wrap();
     let layout = Layout::left_to_right(Default::default());
