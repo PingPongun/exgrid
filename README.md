@@ -15,13 +15,13 @@
 
 ## egui version
 
-`exgrid 0.2` by default depends on `egui 0.28`. To use other versions of egui use correct feature in `Cargo.toml`, eg. to make it work with egui 0.25:
+`exgrid 0.2` by default depends on `egui 0.29`. To use other versions of egui use correct feature in `Cargo.toml`, eg. to make it work with egui 0.25:
 
 ```toml
 exgrid = { version = "0.2", default-features = false, features = [ "egui25" ] }
 ```
 
-OR use `[patch]` section. Currently `exgrid` supports `egui 0.23-0.28`.
+OR use `[patch]` section. Currently `exgrid` supports `egui 0.23-0.29`.
 
 Default egui version feature will be updated to newest egui on semver minor release(0.3).
 

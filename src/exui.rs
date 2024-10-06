@@ -126,6 +126,20 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
             if let Some(ui) = &mut self.temp_ui {
                 ui.skip_ahead_auto_ids(1);
             }
+            #[cfg(feature = "egui29")]
+            let u: &mut MaybeOwnedMut<'a, Ui> = self.temp_ui.get_or_insert_with(|| {
+                MaybeOwnedMut::Owned(Ui::new(
+                    ctx,
+                    LayerId::debug(),
+                    "dummy".into(),
+                    UiBuilder {
+                        max_rect: Some(rect),
+                        invisible: true,
+                        ..Default::default()
+                    },
+                ))
+            });
+            #[cfg(not(feature = "egui29"))]
             let u: &mut MaybeOwnedMut<'a, Ui> = self.temp_ui.get_or_insert_with(|| {
                 MaybeOwnedMut::Owned(Ui::new(
                     ctx,
@@ -140,7 +154,7 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
 
             #[cfg(feature = "egui28")]
             u.set_invisible();
-            #[cfg(not(feature = "egui28"))]
+            #[cfg(not(any(feature = "egui28", feature = "egui29")))]
             u.set_visible(false);
             return u;
         }
@@ -188,13 +202,27 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
                         let mut child_rect = ui.available_rect_before_wrap();
                         child_rect.min.x += indent;
 
-                        *ui_columns = Some(ui.child_ui_with_id_source(
-                            child_rect,
-                            Layout::left_to_right(Align::TOP).with_main_wrap(true),
-                            "indent",
-                            #[cfg(feature = "egui28")]
-                            None,
-                        ));
+                        #[cfg(feature = "egui29")]
+                        {
+                            *ui_columns = Some(ui.new_child(UiBuilder {
+                                id_salt: Some("indent".into()),
+                                max_rect: Some(child_rect),
+                                layout: Some(
+                                    Layout::left_to_right(Align::TOP).with_main_wrap(true),
+                                ),
+                                ..Default::default()
+                            }));
+                        }
+                        #[cfg(not(feature = "egui29"))]
+                        {
+                            *ui_columns = Some(ui.child_ui_with_id_source(
+                                child_rect,
+                                Layout::left_to_right(Align::TOP).with_main_wrap(true),
+                                "indent",
+                                #[cfg(feature = "egui28")]
+                                None,
+                            ));
+                        }
 
                         return disable_ui(
                             &mut self.temp_ui,
@@ -501,12 +529,23 @@ impl<'a, 'b> ExUi<'a, 'b> {
 fn simpleui(ui: &mut Ui) -> Ui {
     let max_rect = ui.available_rect_before_wrap();
     let layout = Layout::left_to_right(Default::default());
-    ui.child_ui(
-        max_rect,
-        layout,
-        #[cfg(feature = "egui28")]
-        None,
-    )
+    #[cfg(feature = "egui29")]
+    {
+        ui.new_child(UiBuilder {
+            max_rect: Some(max_rect),
+            layout: Some(layout),
+            ..Default::default()
+        })
+    }
+    #[cfg(not(feature = "egui29"))]
+    {
+        ui.child_ui(
+            max_rect,
+            layout,
+            #[cfg(feature = "egui28")]
+            None,
+        )
+    }
 }
 #[must_use = "Call [`Self::body(..)`] or [`Self::body_simple(..)`]"]
 pub struct CollapsingRows<'a, 'b, 'c> {
@@ -545,7 +584,13 @@ impl<'a, 'b, 'c> CollapsingRows<'a, 'b, 'c> {
             if collapsed {
                 if let ExUiMode::Compact { ref mut ui_row, .. } = self.exui.state.mode {
                     let ui = &mut ui_row.last_mut().unwrap().content_ui;
-
+                    #[cfg(feature = "egui29")]
+                    let mut child = ui.new_child(UiBuilder {
+                        max_rect: Some(ui.available_rect_before_wrap()),
+                        layout: Some(Layout::left_to_right(Align::TOP)),
+                        ..Default::default()
+                    });
+                    #[cfg(not(feature = "egui29"))]
                     let mut child = ui.child_ui(
                         ui.available_rect_before_wrap(),
                         Layout::left_to_right(Align::TOP),
