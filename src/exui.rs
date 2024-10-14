@@ -49,13 +49,17 @@ impl Default for ExUiInner {
         }
     }
 }
+pub struct ExUiKeepCell<'a> {
+    ui: MaybeOwnedMut<'a, Ui>,
+    widgets_in_cell: usize,
+    nesting_count: usize,
+}
 /// Wrapper for [`egui::Ui`] (most functions will work exactly the same; `ExUi` derefs to `Ui` for all not implemented functions),
 /// but with some additional state & functions to manage adding widgets inside [`ExGrid`].
 pub struct ExUi<'a, 'b> {
     pub ui: MaybeOwnedMut<'a, Ui>,
     pub(crate) state: MaybeOwnedMut<'b, ExUiInner>,
-    /// (cell ui, widgets in cell)
-    pub(crate) keep_cell: Option<(MaybeOwnedMut<'a, Ui>, usize)>,
+    pub(crate) keep_cell: Option<ExUiKeepCell<'a>>,
     pub(crate) temp_ui: Option<MaybeOwnedMut<'a, Ui>>,
 }
 
@@ -160,8 +164,13 @@ impl<'a, 'b> DerefMut for ExUi<'a, 'b> {
         }
         self.advance_temp_rect();
         let id = self.id();
-        if let Some((ui, wic)) = &mut self.keep_cell {
-            *wic += 1;
+        if let Some(ExUiKeepCell {
+            ui,
+            widgets_in_cell,
+            ..
+        }) = &mut self.keep_cell
+        {
+            *widgets_in_cell += 1;
             disable_ui(&mut self.temp_ui, ui, self.state.disabled)
         } else {
             self.state.column += 1;
@@ -469,26 +478,51 @@ impl<'a, 'b> ExUi<'a, 'b> {
     pub fn get_column(&self) -> usize {
         self.state.column
     }
+    pub fn get_nesting_cursor(&self) -> &Vec<usize> {
+        &self.state.row_cursor
+    }
     pub fn get_widgets_in_cell(&self) -> Option<usize> {
-        self.keep_cell.as_ref().map(|(_, wic)| *wic)
+        self.keep_cell.as_ref().map(
+            |ExUiKeepCell {
+                 widgets_in_cell, ..
+             }| *widgets_in_cell,
+        )
     }
     /// Creates sub-ui which will be used when adding next widgets
     /// (following widgets will stay in the same grid cell)
     /// Consecutive calls will stay with the same sub-ui (no-op)
     /// Sub-ui will be exited when [`Self::keep_cell_stop`] or [`Self::end_row`] is called
     pub fn keep_cell_start(&mut self) {
-        if self.keep_cell.is_none() {
+        if let Some(ExUiKeepCell {
+            ref mut nesting_count,
+            ..
+        }) = self.keep_cell
+        {
+            *nesting_count += 1;
+        } else {
             let ui: &mut Ui = &mut *self;
-            self.keep_cell = Some((MaybeOwnedMut::Owned(simpleui(ui)), 0));
+            self.keep_cell = Some(ExUiKeepCell {
+                ui: MaybeOwnedMut::Owned(simpleui(ui)),
+                widgets_in_cell: 0,
+                nesting_count: 0,
+            });
         }
     }
     pub fn keep_cell_stop(&mut self) {
-        let rect = self.keep_cell.as_ref().map(|ui| ui.0.min_rect());
-
-        if let Some(rect) = rect {
-            self._ui().advance_cursor_after_rect(rect);
-            self.temp_ui = None;
-            self.keep_cell = None
+        if let Some(ExUiKeepCell {
+            ref mut nesting_count,
+            ref ui,
+            ..
+        }) = self.keep_cell
+        {
+            if *nesting_count == 0 {
+                let rect = ui.min_rect();
+                self._ui().advance_cursor_after_rect(rect);
+                self.temp_ui = None;
+                self.keep_cell = None;
+            } else {
+                *nesting_count -= 1;
+            }
         }
     }
 }
